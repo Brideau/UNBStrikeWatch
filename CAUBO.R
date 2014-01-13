@@ -19,39 +19,30 @@ realdollars <- function(years, amounts) {
 }
 
 uni.income = list()
-uni.income.gov = list()
 uni.salary = list()
-unb.government <- c()
-unb.tuition <- c()
 for (set in data.sets) {
   uni.income.file <- paste(data.folder, set, "/t_D_Rep_31.csv", sep="")
   uni.income[[set]] <- read.csv(uni.income.file, header=TRUE, stringsAsFactors=FALSE)
   # Discard unneeded columns
   uni.income[[set]] <- subset(uni.income[[set]], select=c("INSTNAME", "Lin_TIT", "C01", "C01pct"))
   names(uni.income[[set]]) <- c("Institution", "Line", "Total", "TotalPercent")
-  uni.income[[set]] <- uni.income[[set]][grepl("Provincial|Credit course tuition|Non-credit tuition|Other fees", uni.income[[set]]$Line),]
+  uni.income[[set]] <- subset(uni.income[[set]], grepl("Provincial|Credit course tuition|Non-credit tuition|Other fees", Line))
+  uni.income[[set]]$Year = set
   
-  uni.income.gov[[set]] <- uni.income[[set]][grepl("Provincial", uni.income[[set]]$Line),]$Total
-  
-  # Focus on UNB
-  yearly.amount <- uni.income[[set]][grepl("New Brunswick", uni.income[[set]]$Institution),]
-  
-  # Grab the government funding amount
-  yearly.amount.gov <- yearly.amount[grepl("Provincial", yearly.amount$Line),]$Total # Total
-  unb.government <- c(unb.government, c(yearly.amount.gov))
-  
-  # Grab the tuition amount
-  yearly.amount.tuit <- yearly.amount[grepl("Credit course", yearly.amount$Line),]$Total + yearly.amount[grepl("Non-credit", yearly.amount$Line),]$Total + yearly.amount[grepl("Other fees", yearly.amount$Line),]$Total
-  unb.tuition <- c(unb.tuition, c(yearly.amount.tuit))
-  
-  uni.salary.set <- paste(data.folder, set, "/t_D_Rep_32.csv", sep="")
-  uni.salary[[set]] <- read.csv(uni.salary.set, header=TRUE, stringsAsFactors=FALSE)
-  uni.salary[[set]] <- uni.salary[[set]][c("INSTNAME", "Lin_TIT", "C01", "C01pct")]
-  uni.salary[[set]] <- uni.salary[[set]][c("INSTNAME", "Lin_TIT", "C01", "C01pct")]
+  uni.salary.file <- paste(data.folder, set, "/t_D_Rep_32.csv", sep="")
+  uni.salary[[set]] <- read.csv(uni.salary.file, header=TRUE, stringsAsFactors=FALSE)
+  uni.salary[[set]] <- subset(uni.salary[[set]], select=c("INSTNAME", "Lin_TIT", "C01", "C01pct"))
   names(uni.salary[[set]]) <- c("Institution", "Line", "Total", "TotalPercent")
-  uni.salary[[set]] <- uni.salary[[set]][grepl("Academic ranks|Other instruction and research|Other salaries and wages|Benefits|land and land improvements", uni.salary[[set]]$Line),]
+  uni.salary[[set]] <- subset(uni.salary[[set]], grepl("Academic ranks|Other instruction and research|Other salaries and wages|Benefits|land and land improvements", Line))
+  uni.salary[[set]]$Year = set
 }
-remove(uni.income.file)
+remove(set, uni.income.file, uni.salary.file)
+
+uni.income.df <- do.call("rbind", uni.income)
+uni.salary.df <- do.call("rbind", uni.salary)
+
+
+
 
 unb.government.real <- realdollars(years, unb.government)
 qplot(data.sets, unb.government.real, ylim=c(min(unb.government.real),max(unb.government.real)), xlab="Year", ylab="Provincial Funding (000's)", geom="point")
