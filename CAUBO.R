@@ -29,8 +29,8 @@ for (set in data.sets) {
   uni.income[[set]] <- subset(uni.income[[set]], grepl("Provincial|Credit course tuition|Non-credit tuition|Other fees", Line))
   # Adds year column
   uni.income[[set]]$Year = set
-  # Cleans up line value
-  uni.income[[set]]$Line = sapply(strsplit(uni.income[[set]]$Line, "   "), '[',2)
+  # Removes the numbers at the beginning
+  uni.income[[set]]$Line = gsub(" |-", "", sapply(strsplit(uni.income[[set]]$Line, "  "), '[',2))
   
   uni.salary.file <- paste(data.folder, set, "/t_D_Rep_32.csv", sep="")
   uni.salary[[set]] <- read.csv(uni.salary.file, header=TRUE, stringsAsFactors=FALSE)
@@ -38,7 +38,7 @@ for (set in data.sets) {
   names(uni.salary[[set]]) <- c("Institution", "Line", "Total", "TotalPercent")
   uni.salary[[set]] <- subset(uni.salary[[set]], grepl("Academic ranks|Other instruction and research|Other salaries and wages|Benefits|land and land improvements", Line))
   uni.salary[[set]]$Year = set
-  uni.salary[[set]]$Line = sapply(strsplit(uni.salary[[set]]$Line, "   "), '[',2)
+  uni.salary[[set]]$Line = gsub(" |-", "", sapply(strsplit(uni.salary[[set]]$Line, "  "), '[',2))
 }
 remove(set, uni.income.file, uni.salary.file)
 
