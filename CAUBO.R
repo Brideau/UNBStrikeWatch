@@ -38,6 +38,7 @@ growthcalc <- function(amounts) {
   return(growth)
 } 
 
+# All the data is in a crazy format separated in a bunch of files. This brings it all together.
 counter <- 1
 uni.income <- list()
 uni.salary <- list()
@@ -169,28 +170,6 @@ ggplot(fund.percent, aes(Year)) + theme +
   annotate("text", x=2005, y=0.55, label="Government Funding", size=6) +
   annotate("text", x=2004, y=0.37, label="Tuition and Fees", size=6)
 
-# First find peer min/max for comparison. This turned out not to be helpful
-# prov.fund.growth <- list()
-# for (year in years) {
-#   growth.vec <- c()
-#   if (year == 1999) {
-#     growth.vec <- c(NA)
-#     prov.fund.growth[["Max"]][as.character(year)] <- NA
-#     prov.fund.growth[["Min"]][as.character(year)] <- NA
-#   } else {
-#     for (school in uni.similar.unb.names) {
-#       funding.present <- realdollars(year, subset(uni.income.df, Institution == school & Line == "Provincial" & Year == year)$Total)
-#       funding.prev <- realdollars(year, subset(uni.income.df, Institution == school & Line == "Provincial" & Year == year - 1)$Total)
-#       growth <- (funding.present - funding.prev)/funding.prev
-#       growth.vec <- c(growth.vec, growth)
-#     }
-#     prov.fund.growth[["Max"]][as.character(year)] <- max(growth.vec)
-#     prov.fund.growth[["Min"]][as.character(year)] <- min(growth.vec)
-#   }
-# }
-# prov.fund.growth.df <- as.data.frame(prov.fund.growth)
-# unb.prov.fund$Max <- c(prov.fund.growth$Max, NA)
-# unb.prov.fund$Min <- c(prov.fund.growth$Min, NA)
 
 
 
