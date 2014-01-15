@@ -1,19 +1,19 @@
 library(ggplot2)
 library(scales)
 
-data.file <- "Data/PresidentSalaries2.csv"
+data.file <- "Data/PresidentSalaries3.csv"
 uni.ftes.file <- "Data/CAUBO/20112012/t_D_Rep_0.csv"
 
 president.salaries <- read.csv(data.file, header=TRUE, stringsAsFactors=FALSE)
 uni.ftes <- read.csv(uni.ftes.file, header=TRUE, stringsAsFactors=FALSE)
 
-realdollars <- function(years, amounts) {
+realdollars <- function(yearsfrom, amounts, yearto=2002) {
   cpiinflation <- read.csv("Data/CPI.csv")
   converted <- c()
   counter <- 1
-  for (year in years) {
+  for (year in yearsfrom) {
     cpi <- subset(cpiinflation, Ref_Date==year)$Value
-    cpi2002 <- 100
+    cpi2002 <- subset(cpiinflation, Ref_Date==yearto)$Value
     realvalue <- amounts[counter]*cpi2002/cpi
     counter = counter + 1
     converted <- c(converted, realvalue)
@@ -191,18 +191,88 @@ assistant.10.plot <- ggplot(assistant.10, aes(x=Year, y=Salary2002, colour=Unive
 ggsave(filename="Plots/Salaries/Assistant10.png", plot=assistant.10.plot, width=12, height=8, dpi=100, units="in")
 
 
+president.salaries$Salary2011 <- realdollars(president.salaries$Year, president.salaries$Salary, 2011)
+
+
 # Plots the university president salaries
 library(grid)
-plot <- ggplot(president.salaries, aes(x=reorder(University,Salary), y=Salary, fill=FTEs)) + theme +
+plot <- ggplot(president.salaries, aes(x=reorder(University,Salary2011), y=Salary2011, fill=FTEs)) + theme +
   geom_bar(stat="identity") +
   theme(axis.text.x = element_text(angle=70, hjust=1, vjust=1, colour="black", size=rel(1.5))) +
-  scale_y_continuous(labels = dollar) +
+  scale_y_continuous(labels = dollar, name="Salary, 2011 Dollars") +
   scale_x_discrete(name="University") +
   ggtitle("Canadian University President's Salaries") +
   labs(fill="Total Students") +
-  geom_text(aes(label=paste("$",prettyNum(Salary, big.mark=",", scientific=F), sep="")), size=4, angle=90, colour="white", hjust=1, vjust=0.5) +
-  annotate("text", x="University of New Brunswick", y=400000, label="UNB", size=6) +
-  annotate("segment", x=30, xend=30, y=390000, yend=360000, arrow=arrow(ends="last", angle=30, length=unit(0.3, "cm")))
+  geom_text(aes(label=paste("$",prettyNum(Salary2011, big.mark=",", scientific=F), sep="")), size=4, angle=90, colour="white", hjust=1, vjust=0.5) +
+  annotate("text", x="University of New Brunswick", y=420000, label="UNB", size=6) +
+  annotate("segment", x=33, xend=33, y=410000, yend=383000, arrow=arrow(ends="last", angle=30, length=unit(0.3, "cm")))
 plot
+
+
+# Because the above numbers are biased for a whole bunch of reasons, I'm inventing a "President Index"
+# that compares prof salaries to the salary of the president.
+
+# Adds a column with each university's president's salary
+salary.data.df$PresidentSalary2011 <- NA
+for (school in comp.schools) {
+  school.char <- as.character(school)
+  school.cell <- salary.data.df$University == school
+  president.salary <- president.salaries[president.salaries$University == school,]$Salary2011
+  salary.data.df$PresidentSalary2011[school.cell] <- president.salary
+}
+
+# I need a vector of dates to pass into the realdollars function
+salary.data.df$PresidentSalaryYear <- 2011
+# Creates a column for the salaries in 2002 dollars
+salary.data.df$PresidentSalary2002 <- realdollars(salary.data.df$PresidentSalaryYear, salary.data.df$PresidentSalary2011, 2002)
+
+
+# Creates a column for the ratio of the president's salary to professors
+salary.data.df$ratio <- salary.data.df$Salary2002/salary.data.df$PresidentSalary2002
+
+# Full prof ratio
+fullprof.median.ratio <- subset(salary.data.df, Professor.Type == "Full professor" & Salary.Measure == "Median Salary")
+fullprof.median.ratio.plot <- ggplot(fullprof.median.ratio, aes(x=Year, y=ratio, colour=University, linetype=(IsUNB))) + 
+  ggtitle("Full Professors' Salary As A Percentage of University President's Salary") +
+  geom_line(size=1.1) + 
+  geom_point(size=2.5) +
+  scale_y_continuous(name="Prof. Salary as a Percentage of President's Salary (Both 2002 Dollars)", labels=percent, limits=c(0, 0.5)) +
+  scale_x_continuous(name="Year", breaks=seq(2000, 2010, 1)) +
+  scale_color_discrete() +
+  labs(linetype="Is it UNB?") +
+  scale_linetype_discrete(labels=c("No", "Yes")) +
+  theme
+fullprof.median.ratio.plot
+ggsave(filename="Plots/Salaries/FullprofMedianRatio.png", plot=fullprof.median.ratio.plot, width=14, height=10, dpi=100, units="in")
+
+# Associate prof ratio
+associate.median.ratio <- subset(salary.data.df, Professor.Type == "Associate professor" & Salary.Measure == "Median Salary")
+associate.median.ratio.plot <- ggplot(associate.median.ratio, aes(x=Year, y=ratio, colour=University, linetype=(IsUNB))) + 
+  ggtitle("Associate Professors' Salary As A Percentage of University President's Salary") +
+  geom_line(size=1.1) + 
+  geom_point(size=2.5) +
+  scale_y_continuous(name="Prof. Salary as a Percentage of President's Salary (Both 2002 Dollars)", labels=percent, limits=c(0, 0.5)) +
+  scale_x_continuous(name="Year", breaks=seq(2000, 2010, 1)) +
+  scale_color_discrete() +
+  labs(linetype="Is it UNB?") +
+  scale_linetype_discrete(labels=c("No", "Yes")) +
+  theme
+associate.median.ratio.plot
+ggsave(filename="Plots/Salaries/AssociateMedianRatio.png", plot=associate.median.ratio.plot, width=14, height=10, dpi=100, units="in")
+
+# Assistant prof ratio
+assistant.median.ratio <- subset(salary.data.df, Professor.Type == "Assistant professor" & Salary.Measure == "Median Salary")
+assistant.median.ratio.plot <- ggplot(assistant.median.ratio, aes(x=Year, y=ratio, colour=University, linetype=(IsUNB))) + 
+  ggtitle("Assistant Professors' Salary As A Percentage of University President's Salary") +
+  geom_line(size=1.1) + 
+  geom_point(size=2.5) +
+  scale_y_continuous(name="Prof. Salary as a Percentage of President's Salary (Both 2002 Dollars)", labels=percent, limits=c(0, 0.5)) +
+  scale_x_continuous(name="Year", breaks=seq(2000, 2010, 1)) +
+  scale_color_discrete() +
+  labs(linetype="Is it UNB?") +
+  scale_linetype_discrete(labels=c("No", "Yes")) +
+  theme
+assistant.median.ratio.plot
+ggsave(filename="Plots/Salaries/AssistantMedianRatio.png", plot=assistant.median.ratio.plot, width=14, height=10, dpi=100, units="in")
 
 
