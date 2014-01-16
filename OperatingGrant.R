@@ -39,6 +39,7 @@ growthcalc <- function(amounts) {
 } 
 
 # All the data is in a crazy format separated in a bunch of files. This brings it all together.
+# I discovered the melt function late, so things get messy later as I try to combine things. 
 counter <- 1
 uni.income <- list()
 uni.salary <- list()
@@ -72,7 +73,8 @@ for (set in data.sets) {
   
   counter <- counter + 1
 }
-# remove(set, uni.income.file, uni.salary.file, uni.ftes.file)
+# Memory management
+remove(set, uni.income.file, uni.salary.file, uni.ftes.file)
 
 uni.income.df <- do.call("rbind", uni.income)
 uni.salary.df <- do.call("rbind", uni.salary)
@@ -83,6 +85,9 @@ uni.ftes.df <- do.call("rbind", uni.ftes)
 uni.ftes.df <- subset(uni.ftes.df, Language == "e")
 uni.ftes.df$Language <- NULL
 uni.ftes.df$Province <- NULL
+
+
+########## I didn't end up using this section for anything, but it might be useful later.
 
 # Look at all schools between 5000 and 15000
 uni.similar.unb <- subset(uni.ftes.df, FTEs > 6000 & FTEs < 14000)
@@ -100,6 +105,8 @@ for (school in uni.similar.unb.names) {
     uni.similar.unb.names <- uni.similar.unb.names[!uni.similar.unb.names == school]
   }
 }
+
+#####################################################################
 
 # Get provincial funding data
 unb.prov.fund <- subset(uni.income.df, Institution == "University of New Brunswick" & Line == "Provincial")
