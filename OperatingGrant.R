@@ -3,8 +3,12 @@ library(reshape2)
 library(plyr)
 
 data.folder <- "Data/CAUBO/"
-data.sets <- c("19992000", "20002001", "20012002", "20022003", "20032004", "20042005", "20052006", "20062007", "20072008", "20082009", "20092010", "20102011", "20112012")
-years <- as.numeric(substr(data.sets, 1, 4))
+years <- 1999:2011
+data.sets <- c()
+for (year in years) {
+  data.sets <- c(data.sets, paste(year, year+1, sep=""))
+}
+comp.schools <- c("McMaster University", "University of Waterloo", "University of Windsor", "Queen's University", "University of Guelph", "Carleton University", "Simon Fraser University", "University of Regina", "Dalhousie University", "Memorial University of Newfoundland", "University of Manitoba", "Concordia University", "University of Victoria", "University of New Brunswick", "University of Saskatchewan")
 
 # Converts a vector of dollars to 2002 dollars
 realdollars <- function(years, amounts) {
@@ -48,13 +52,15 @@ for (set in data.sets) {
   uni.income.file <- paste(data.folder, set, "/t_D_Rep_31.csv", sep="")
   uni.income[[set]] <- read.csv(uni.income.file, header=TRUE, stringsAsFactors=FALSE)
   # Discard unneeded columns
-  uni.income[[set]] <- subset(uni.income[[set]], select=c("INSTNAME", "Lin_TIT", "C01", "C01pct"))
-  names(uni.income[[set]]) <- c("Institution", "Line", "Total", "TotalPercent")
-  uni.income[[set]] <- subset(uni.income[[set]], grepl("Provincial|Credit course tuition|Non-credit tuition|Other fees", Line))
+  uni.income[[set]] <- subset(uni.income[[set]], select=c("INSTNAME", "Lin_TIT", "C01", "C01pct", "Grp_TIT"))
+  names(uni.income[[set]]) <- c("Institution", "Line", "Total", "TotalPercent", "GroupTitle")
+  # There are two lines named Individual. This gets rid of one so we can focus on the one we want.
+  uni.income[[set]] <- subset(uni.income[[set]], !(grepl("Non-government grants and contracts", GroupTitle)) )
+  uni.income[[set]]$GroupTitle <- NULL
+  uni.income[[set]] <- subset(uni.income[[set]], grepl("Provincial|Credit course tuition|Non-credit tuition|Other fees|Individuals|Endowment|Other investment", Line))
   # Adds year column
   uni.income[[set]]$Year = years[counter]
   # Removes the numbers at the beginning
-  ###### Move this just below names() above
   uni.income[[set]]$Line = gsub(" |-", "", sapply(strsplit(uni.income[[set]]$Line, "  "), '[',2))
   
   uni.salary.file <- paste(data.folder, set, "/t_D_Rep_32.csv", sep="")
@@ -74,39 +80,51 @@ for (set in data.sets) {
   counter <- counter + 1
 }
 # Memory management
-remove(set, uni.income.file, uni.salary.file, uni.ftes.file)
+# remove(set, uni.income.file, uni.salary.file, uni.ftes.file)
 
+# Get all the data into data frames
 uni.income.df <- do.call("rbind", uni.income)
 uni.salary.df <- do.call("rbind", uni.salary)
-
-# Get FTE data
 uni.ftes.df <- do.call("rbind", uni.ftes)
-# English speaking schools
-uni.ftes.df <- subset(uni.ftes.df, Language == "e")
-uni.ftes.df$Language <- NULL
-uni.ftes.df$Province <- NULL
 
+# Filter to focus on comparison schools
+comparable.df <- uni.income.df
+comparable.df <- subset(comparable.df, Institution %in% comp.schools)
 
-########## I didn't end up using this section for anything, but it might be useful later.
-
-# Look at all schools between 5000 and 15000
-uni.similar.unb <- subset(uni.ftes.df, FTEs > 6000 & FTEs < 14000)
-
-# Get the list of universities similar to UNB
-uni.similar.unb.names <- uni.similar.unb
-uni.similar.unb.names$Institution <- as.factor(uni.similar.unb.names$Institution)
-uni.similar.unb.names <- levels(uni.similar.unb.names$Institution)
-
-# Remove schools with partial data
-for (school in uni.similar.unb.names) {
-  FTE.vec <- subset(uni.ftes.df, Institution == school)
-  if (length(FTE.vec$FTEs) < 13) {
-    uni.similar.unb <- subset(uni.similar.unb, Institution != school)
-    uni.similar.unb.names <- uni.similar.unb.names[!uni.similar.unb.names == school]
+# Totals how much the endowment, individual donations and other investment income contributes to the operating budget
+for (year in years) {
+  print(year)
+  for (school in comp.schools) {
+    IndEndOther.Total <- sum(subset(comparable.df, (Line == "Individuals" | Line == "Endowment" | Line == "Otherinvestment") & Year == year & Institution == school)$Total)
+    IndEndOther.Percent <- sum(subset(comparable.df, (Line == "Individuals" | Line == "Endowment" | Line == "Otherinvestment") & Year == year & Institution == school)$TotalPercent)
+    newRow <- data.frame(Institution=school, Line="IndEndOther", Total=IndEndOther.Total, TotalPercent=IndEndOther.Percent, Year=year)
+    comparable.df <- rbind(comparable.df, newRow)
   }
 }
 
-#####################################################################
+# Add a column for storing FTEs. FTE data for 2009 is missing from CAUBO data.
+comparable.df$FTEs <- NA
+for (year in years) {
+  for (school in comp.schools) {
+    print(school)
+    if (year == 2009) {
+      comparable.df[comparable.df$Institution == school & comparable.df$Year == year,]$FTEs <- NA
+    } else {
+      num.ftes <- uni.ftes.df[uni.ftes.df$Institution == school & uni.ftes.df$Year == year,]$FTEs
+      comparable.df[comparable.df$Institution == school & comparable.df$Year == year,]$FTEs <- num.ftes
+    }
+  }
+}
+
+comparable.df.investments <- subset(comparable.df, Line == "IndEndOther")
+comparable.df.investments$InvPerStudent <- round((comparable.df.investments$Total*1000)/comparable.df.investments$FTEs, 1)
+
+# English speaking schools
+# uni.ftes.df <- subset(uni.ftes.df, Language == "e")
+# uni.ftes.df$Language <- NULL
+# uni.ftes.df$Province <- NULL
+
+
 
 # Get provincial funding data
 unb.prov.fund <- subset(uni.income.df, Institution == "University of New Brunswick" & Line == "Provincial")
@@ -176,6 +194,53 @@ ggplot(fund.percent, aes(Year)) + theme +
   scale_y_continuous(name="Percent of Total Budget", labels = percent, limits=c(0.30, 0.63)) +
   annotate("text", x=2005, y=0.55, label="Government Funding", size=6) +
   annotate("text", x=2004, y=0.37, label="Tuition and Fees", size=6)
+
+
+theme_line <- theme(plot.title=element_text(size=rel(1.7)), axis.title.x=element_text(size=rel(1.5)),  axis.title.y=element_text(size=rel(1.5)), axis.text.x=element_text(size=rel(1.5)), axis.text.y=element_text(size=rel(1.5)), legend.text=element_text(size=rel(1.1)) )
+
+
+
+# Plot that shows the combined investment income/student over time.
+
+# Adds a column for specifying whether it is UNB or not
+comparable.df.investments$IsUNB <- NA
+comparable.df.investments$IsUNB <- comparable.df.investments$Institution == "University of New Brunswick"
+
+# 2009 data is missing
+comparable.df.investments <- subset(comparable.df.investments, Year != 2009)
+
+investment.per.student.plot <- ggplot(comparable.df.investments, aes(x=Year, y=InvPerStudent, colour=Institution, linetype=IsUNB)) + 
+  ggtitle("Total Investment per Student Used for Operating Budget") +
+  geom_line(size=1.1) + 
+  geom_point(size=2.5) +
+  scale_y_continuous(name="Total Investments/Student", labels=dollar) +
+  scale_x_continuous(name="", breaks=seq(1999, 2010, 1)) +
+  scale_color_discrete() +
+  labs(linetype="Is it UNB?") +
+  scale_linetype_discrete(labels=c("No", "Yes")) +
+  theme_line + theme_bw()
+investment.per.student.plot
+ggsave(filename="Plots/Investments/InvestmentPerStudentTime.png", plot=investment.per.student.plot, width=12, height=8, dpi=100, units="in")
+
+library(grid)
+investment.student.2011 <- subset(comparable.df.investments, Year == 2011)
+investment.student.2011.plot <- ggplot(investment.student.2011, aes(x=reorder(Institution,InvPerStudent), y=InvPerStudent, fill=TotalPercent)) + 
+  geom_bar(stat="identity") +
+  theme + theme_bw() +
+  theme(axis.text.x = element_text(angle=65, hjust=1, vjust=1, colour="black", size=rel(1.5))) +
+  scale_y_continuous(labels = dollar, name="Total Investments/Student") +
+  scale_x_discrete(name="") +
+  ggtitle("Total Investments per Student, Used for Operating Budget, 2011-2012") +
+  labs(fill="% of Operating Budget") +
+  geom_text(aes(label=prettyNum(InvPerStudent, big.mark=",", scientific=F)), size=4, vjust=-1) +
+  annotate("text", x="University of New Brunswick", y=450, label="UNB", size=6) +
+  annotate("segment", x=5, xend=5, y=400, yend=250, arrow=arrow(ends="last", angle=30, length=unit(0.3, "cm")))
+investment.student.2011.plot
+ggsave(filename="Plots/Investments/InvestmentPerStudent2011.png", plot=investment.student.2011.plot, width=12, height=11, dpi=100, units="in")
+
+
+
+
 
 
 
